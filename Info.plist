@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>com.replypilot.mail</string>
+  <key>CFBundleName</key><string>YINGYING邮件自动回复</string>
+  <key>CFBundleDisplayName</key><string>YINGYING邮件自动回复</string>
+  <key>CFBundleExecutable</key><string>ReplyPilot</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.3.1</string>
+  <key>CFBundleVersion</key><string>8</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>YINGYING邮件自动回复需要读取你在 Mac“邮件”中已登录的收件箱，并按你设置的白名单和规则自动发送回复。</string>
+</dict></plist>
