@@ -16,6 +16,8 @@ static NSString * const RPModelPref = @"ai.model";
 static NSString * const RPIntervalPref = @"mail.intervalSeconds";
 static NSString * const RPIntervalUnitPref = @"mail.intervalUnit";
 static NSString * const RPTimesPref = @"mail.scheduledTimes";
+static NSString * const RPManualLookbackPref = @"mail.manualLookbackValue";
+static NSString * const RPManualLookbackUnitPref = @"mail.manualLookbackUnit";
 static NSString * const RPEnabledPref = @"mail.enabled";
 static NSString * const RPAttemptedPref = @"mail.attemptedIDs";
 static NSString * const RPBatchStartPref = @"mail.batchStartByAccount";
@@ -404,7 +406,9 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
 @property (strong) NSTextField *modelField;
 @property (strong) NSTextField *intervalField;
 @property (strong) NSTextField *timesField;
+@property (strong) NSTextField *manualLookbackField;
 @property (strong) NSPopUpButton *intervalUnit;
+@property (strong) NSPopUpButton *manualLookbackUnit;
 @property (strong) NSTextView *whitelistView;
 @property (strong) NSTextView *rulesView;
 @property (strong) NSTextView *logView;
@@ -416,6 +420,7 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
 @property (strong) NSPopUpButton *schedulePicker;
 @property (strong) NSTimer *timer;
 @property (strong) NSDate *lastScheduledSlotAt;
+@property (strong) NSArray<NSNumber *> *activeScheduledMinutes;
 @property (strong) NSMutableSet<NSString *> *attemptedIDs;
 @property (strong) NSMutableArray<NSString *> *attemptedOrder;
 @property (strong) NSMutableArray<NSString *> *logLines;
@@ -619,8 +624,20 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
     [self label:@"时间" frame:NSMakeRect(393, 78, 42, 19) font:[NSFont systemFontOfSize:12] inView:schedule];
     self.timesField = [self field:NSMakeRect(435, 74, 190, 27) value:[NSUserDefaults.standardUserDefaults stringForKey:RPTimesPref] ?: @"13:00, 23:00" placeholder:@"13:00, 23:00" inView:schedule];
     [self label:@"每次启动重设 12 小时起点；之后按发件人从上次回复接续。" frame:NSMakeRect(18, 43, 606, 18) font:[NSFont systemFontOfSize:11] inView:schedule].textColor = NSColor.secondaryLabelColor;
-    self.testButton = [self button:@"立即汇总近 30 分钟并发送" frame:NSMakeRect(18, 8, 230, 29) action:@selector(testBatchNow:) inView:schedule];
-    [self label:@"按白名单和规则处理，每位发件人最多一封。" frame:NSMakeRect(260, 14, 365, 18) font:[NSFont systemFontOfSize:11] inView:schedule].textColor = NSColor.secondaryLabelColor;
+    self.testButton = [self button:@"立即汇总并发送" frame:NSMakeRect(18, 8, 160, 29) action:@selector(testBatchNow:) inView:schedule];
+    [self label:@"回看" frame:NSMakeRect(190, 14, 40, 18) font:[NSFont systemFontOfSize:12] inView:schedule];
+    NSInteger savedLookback = [NSUserDefaults.standardUserDefaults integerForKey:RPManualLookbackPref];
+    NSInteger savedLookbackUnit = [NSUserDefaults.standardUserDefaults integerForKey:RPManualLookbackUnitPref];
+    if (savedLookback < 1) savedLookback = 30;
+    if (savedLookbackUnit < 0 || savedLookbackUnit > 2) savedLookbackUnit = 0;
+    self.manualLookbackField = [self field:NSMakeRect(229, 9, 58, 27) value:[NSString stringWithFormat:@"%ld", (long)savedLookback] placeholder:@"30" inView:schedule];
+    self.manualLookbackUnit = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(292, 8, 86, 29) pullsDown:NO];
+    [self.manualLookbackUnit addItemsWithTitles:@[@"分钟", @"小时", @"天"]];
+    [self.manualLookbackUnit selectItemAtIndex:savedLookbackUnit];
+    self.manualLookbackUnit.target = self;
+    self.manualLookbackUnit.action = @selector(manualLookbackChanged:);
+    [schedule addSubview:self.manualLookbackUnit];
+    [self label:@"每位白名单发件人最多回复一封。" frame:NSMakeRect(391, 14, 240, 18) font:[NSFont systemFontOfSize:11] inView:schedule].textColor = NSColor.secondaryLabelColor;
     [self updateScheduleControls];
 
     NSView *rulesCard = [self card:NSMakeRect(24, 36, 644, 373) inView:page];
@@ -655,8 +672,12 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
 
 - (void)setStatus:(NSString *)message {
     void (^update)(void) = ^{
-        self.statusLabel.stringValue = message ?: @"";
-        self.statusLabel.toolTip = message ?: @"";
+        NSString *display = message ?: @"";
+        if (self.isRunning && [self isScheduledMode] && self.activeScheduledMinutes.count) {
+            display = [display stringByAppendingFormat:@"  下次：%@", [self nextScheduledDescription]];
+        }
+        self.statusLabel.stringValue = display;
+        self.statusLabel.toolTip = display;
     };
     if (NSThread.isMainThread) update();
     else dispatch_async(dispatch_get_main_queue(), update);
@@ -721,6 +742,8 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
     [defaults setObject:RPTrim(self.endpointField.stringValue) forKey:RPEndpointPref];
     [defaults setObject:RPTrim(self.modelField.stringValue) forKey:RPModelPref];
     [defaults setObject:RPTrim(self.timesField.stringValue) forKey:RPTimesPref];
+    [defaults setObject:RPTrim(self.manualLookbackField.stringValue) forKey:RPManualLookbackPref];
+    [defaults setInteger:self.manualLookbackUnit.indexOfSelectedItem forKey:RPManualLookbackUnitPref];
     [defaults setInteger:[self intervalSeconds] forKey:RPIntervalPref];
     [defaults setInteger:self.intervalUnit.indexOfSelectedItem forKey:RPIntervalUnitPref];
     [defaults setObject:[self isBatchMode] ? @"batch" : ([self isScheduledMode] ? @"times" : @"interval") forKey:RPScheduleModePref];
@@ -740,6 +763,24 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
     self.intervalUnit.enabled = !times;
     self.timesField.enabled = times;
     self.testButton.enabled = [self isBatchMode] && !self.pollInProgress;
+    self.manualLookbackField.enabled = [self isBatchMode] && !self.pollInProgress;
+    self.manualLookbackUnit.enabled = [self isBatchMode] && !self.pollInProgress;
+}
+
+- (NSInteger)manualLookbackSeconds {
+    NSString *value = RPTrim(self.manualLookbackField.stringValue);
+    NSScanner *scanner = [NSScanner scannerWithString:value];
+    NSInteger number = 0;
+    if (![scanner scanInteger:&number] || !scanner.isAtEnd || number <= 0) return 0;
+    NSInteger factor = self.manualLookbackUnit.indexOfSelectedItem == 1 ? 3600 : (self.manualLookbackUnit.indexOfSelectedItem == 2 ? 86400 : 60);
+    if (number > 30 * 86400 / factor) return 0;
+    return number * factor;
+}
+
+- (NSString *)manualLookbackDescription:(NSInteger)seconds {
+    if (seconds % 86400 == 0) return [NSString stringWithFormat:@"%ld 天", (long)(seconds / 86400)];
+    if (seconds % 3600 == 0) return [NSString stringWithFormat:@"%ld 小时", (long)(seconds / 3600)];
+    return [NSString stringWithFormat:@"%ld 分钟", (long)(seconds / 60)];
 }
 
 - (NSInteger)intervalSeconds {
@@ -774,22 +815,47 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
 - (NSDate *)mostRecentScheduledSlotAtOrBefore:(NSDate *)date {
     NSCalendar *calendar = NSCalendar.currentCalendar;
     NSDate *candidate = nil;
-    for (NSNumber *minuteValue in [self scheduledMinutes]) {
+    for (NSNumber *minuteValue in self.activeScheduledMinutes) {
         NSInteger total = minuteValue.integerValue;
         NSDate *slot = [calendar dateBySettingHour:total / 60 minute:total % 60 second:0 ofDate:date options:0];
         if ([slot compare:date] != NSOrderedDescending) candidate = slot;
     }
     if (candidate) return candidate;
-    NSInteger total = [self scheduledMinutes].lastObject.integerValue;
+    NSInteger total = self.activeScheduledMinutes.lastObject.integerValue;
     NSDate *yesterday = [calendar dateByAddingUnit:NSCalendarUnitDay value:-1 toDate:date options:0];
     return [calendar dateBySettingHour:total / 60 minute:total % 60 second:0 ofDate:yesterday options:0];
 }
 
+- (NSDate *)nextScheduledSlotAfter:(NSDate *)date {
+    NSCalendar *calendar = NSCalendar.currentCalendar;
+    NSDate *candidate = nil;
+    for (NSNumber *minuteValue in self.activeScheduledMinutes) {
+        NSInteger total = minuteValue.integerValue;
+        NSDateComponents *components = NSDateComponents.new;
+        components.hour = total / 60;
+        components.minute = total % 60;
+        components.second = 0;
+        NSDate *slot = [calendar nextDateAfterDate:date matchingComponents:components options:NSCalendarMatchNextTime];
+        if (slot && (!candidate || [slot compare:candidate] == NSOrderedAscending)) candidate = slot;
+    }
+    return candidate;
+}
+
+- (NSString *)nextScheduledDescription {
+    NSDate *next = [self nextScheduledSlotAfter:NSDate.date];
+    if (!next) return @"";
+    NSDateFormatter *formatter = NSDateFormatter.new;
+    formatter.dateFormat = @"MM-dd HH:mm";
+    return [formatter stringFromDate:next];
+}
+
 - (void)configureTimer {
     [self.timer invalidate];
-    self.lastScheduledSlotAt = [self isScheduledMode] ? [self mostRecentScheduledSlotAtOrBefore:NSDate.date] : nil;
+    self.activeScheduledMinutes = [self isScheduledMode] ? [self scheduledMinutes] : nil;
+    self.lastScheduledSlotAt = [self isScheduledMode] ? NSDate.date : nil;
     NSTimeInterval interval = [self isScheduledMode] ? 15 : [self intervalSeconds];
-    self.timer = [NSTimer scheduledTimerWithTimeInterval:interval target:self selector:@selector(timerTick:) userInfo:nil repeats:YES];
+    self.timer = [NSTimer timerWithTimeInterval:interval target:self selector:@selector(timerTick:) userInfo:nil repeats:YES];
+    [NSRunLoop.mainRunLoop addTimer:self.timer forMode:NSRunLoopCommonModes];
 }
 
 - (void)timerTick:(id)sender {
@@ -799,6 +865,9 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
     NSDate *slot = [self mostRecentScheduledSlotAtOrBefore:NSDate.date];
     if ([slot compare:self.lastScheduledSlotAt] == NSOrderedDescending && !self.pollInProgress) {
         self.lastScheduledSlotAt = slot;
+        NSDateFormatter *formatter = NSDateFormatter.new;
+        formatter.dateFormat = @"yyyy-MM-dd HH:mm";
+        [self appendLog:[NSString stringWithFormat:@"定时时间已触发：%@；开始检查邮箱。", [formatter stringFromDate:slot]]];
         [self pollNow:nil];
     }
 }
@@ -927,8 +996,14 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
             return;
         }
         [self configureTimer];
-        [self setStatus:[self isScheduledMode] ? @"已切换到定时检查。" : @"已切换到间隔检查。"];
+        [self setStatus:[self isScheduledMode] ? @"定时时间已生效。" : @"间隔时间已生效。"];
     }
+}
+
+- (void)manualLookbackChanged:(id)sender {
+    (void)sender;
+    [self saveFields];
+    if (![self manualLookbackSeconds]) [self setStatus:@"手动汇总回看时长应为 1 分钟至 30 天的整数。"];
 }
 
 - (void)textDidChange:(NSNotification *)notification {
@@ -943,6 +1018,19 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
     id field = notification.object;
     if (self.pollInProgress && !self.isRunning) self.generation += 1;
     [self saveFields];
+    if (field == self.manualLookbackField) return;
+    if (field == self.timesField) {
+        if (self.isRunning && [self isScheduledMode]) {
+            if ([self scheduledMinutes]) {
+                [self configureTimer];
+                [self appendLog:[NSString stringWithFormat:@"定时时间已更新并生效：%@。", self.timesField.stringValue]];
+                [self setStatus:@"定时时间已更新。"];
+            } else {
+                [self setStatus:@"定时时间格式未完成；当前有效时间继续运行。格式：HH:mm，多个用逗号分隔。"];
+            }
+        }
+        return;
+    }
     if (field == self.endpointField) {
         self.keyField.stringValue = @"";
         self.keyField.placeholderString = RPKeychainRead(self.endpointField.stringValue) ? @"此服务已有密钥" : @"填入此服务的 API Key";
@@ -1031,10 +1119,11 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
 
 - (void)pollBatchForEmail:(NSString *)email whitelist:(NSString *)whitelist rules:(NSString *)rules
                 endpoint:(NSURL *)endpoint model:(NSString *)model apiKey:(NSString *)apiKey
-              generation:(NSInteger)generation startedAt:(NSDate *)pollStartedAt manual:(BOOL)manual {
+              generation:(NSInteger)generation startedAt:(NSDate *)pollStartedAt manualLookback:(NSInteger)manualLookback {
+    BOOL manual = manualLookback > 0;
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     NSMutableDictionary *starts = [[defaults dictionaryForKey:RPBatchStartPref] ?: @{} mutableCopy];
-    NSNumber *startNumber = manual ? @([pollStartedAt timeIntervalSince1970] - 30 * 60) : starts[email];
+    NSNumber *startNumber = manual ? @([pollStartedAt timeIntervalSince1970] - manualLookback) : starts[email];
     if (!startNumber) {
         startNumber = @([pollStartedAt timeIntervalSince1970] - 12 * 3600);
         starts[email] = startNumber;
@@ -1120,7 +1209,7 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
             [self appendLog:[NSString stringWithFormat:@"定时汇总发送结果待确认\n收件人：%@\n合并邮件数：%lu\n错误：%@\n拟发送正文：\n%@", address, (unsigned long)group.count, sendError ?: @"未知错误", replyText]];
         }
     }
-    NSString *result = [NSString stringWithFormat:@"%@：扫描 %lu 封，涉及 %lu 位白名单发件人，Mail 接受 %lu 封合并回复。", manual ? @"近 30 分钟手动汇总完成" : @"定时汇总完成", (unsigned long)messages.count, (unsigned long)groups.count, (unsigned long)sentCount];
+    NSString *result = [NSString stringWithFormat:@"%@：扫描 %lu 封，涉及 %lu 位白名单发件人，Mail 接受 %lu 封合并回复。", manual ? [NSString stringWithFormat:@"近 %@ 手动汇总完成", [self manualLookbackDescription:manualLookback]] : @"定时汇总完成", (unsigned long)messages.count, (unsigned long)groups.count, (unsigned long)sentCount];
     [self appendLog:result];
     [self setStatus:result];
 }
@@ -1135,17 +1224,20 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
     NSString *apiKey = RPKeychainRead(self.endpointField.stringValue);
     NSString *whitelist = self.whitelistView.string ?: @"";
     NSString *rules = self.rulesView.string ?: @"";
+    NSInteger manualLookback = [self manualLookbackSeconds];
+    if (!manualLookback) { [self setStatus:@"手动汇总回看时长应为 1 分钟至 30 天的整数。"] ; return; }
+    NSString *lookbackDescription = [self manualLookbackDescription:manualLookback];
     if (!email.length || ![email containsString:@"@"]) { [self setStatus:@"请先填写要处理的邮箱地址。"] ; return; }
     if (!endpoint || !model.length || !apiKey.length) { [self setStatus:@"请先填写有效的 AI 接口、模型并保存 API Key。"] ; return; }
     if (!RPTrim(whitelist).length || !RPTrim(rules).length) { [self setStatus:@"请先填写白名单和回复规则。"] ; return; }
     if (self.consentButton.state != NSControlStateValueOn) { [self setStatus:@"请先允许将白名单邮件内容发送至所选 AI 服务。"] ; return; }
-    if (![self writeLog:[NSString stringWithFormat:@"手动汇总已启动：立即读取 %@ 最近 30 分钟的白名单邮件；AI 判断需要回复时将直接发送，每位发件人最多一封。", email]]) {
+    if (![self writeLog:[NSString stringWithFormat:@"手动汇总已启动：立即读取 %@ 最近 %@ 的白名单邮件；AI 判断需要回复时将直接发送，每位发件人最多一封。", email, lookbackDescription]]) {
         [self setStatus:@"日志无法写入，手动汇总未执行。"];
         return;
     }
     self.pollInProgress = YES;
     self.testButton.enabled = NO;
-    [self setStatus:@"正在汇总近 30 分钟邮件；符合规则时会直接发送…"];
+    [self setStatus:[NSString stringWithFormat:@"正在汇总近 %@ 邮件；符合规则时会直接发送…", lookbackDescription]];
     NSInteger generation = self.generation;
     NSDate *startedAt = NSDate.date;
     dispatch_async(self.workQueue, ^{
@@ -1160,7 +1252,7 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
                     [self setStatus:message];
                     return;
                 }
-                [self pollBatchForEmail:email whitelist:whitelist rules:rules endpoint:endpoint model:model apiKey:apiKey generation:generation startedAt:startedAt manual:YES];
+                [self pollBatchForEmail:email whitelist:whitelist rules:rules endpoint:endpoint model:model apiKey:apiKey generation:generation startedAt:startedAt manualLookback:manualLookback];
             } @finally {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     self.pollInProgress = NO;
@@ -1203,7 +1295,7 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
                 return;
             }
             if (batchMode) {
-                [self pollBatchForEmail:email whitelist:whitelist rules:rules endpoint:endpoint model:model apiKey:apiKey generation:generation startedAt:pollStartedAt manual:NO];
+                [self pollBatchForEmail:email whitelist:whitelist rules:rules endpoint:endpoint model:model apiKey:apiKey generation:generation startedAt:pollStartedAt manualLookback:0];
                 return;
             }
             NSInteger secondsBack = (NSInteger)ceil(-[since timeIntervalSinceDate:pollStartedAt]) + 120;
@@ -1268,8 +1360,8 @@ static NSDictionary *RPAIBatchDecision(NSString *apiKey, NSURL *endpoint, NSStri
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (!self.isRunning || self.generation != generation) return;
                 if (!needsRetry) self.lastPollAt = pollStartedAt;
-                self.statusLabel.stringValue = needsRetry ? @"部分邮件判断失败，下次检查会重试。" :
-                    [NSString stringWithFormat:@"检查完成，共扫描 %lu 封近期邮件。", (unsigned long)messages.count];
+                [self setStatus:needsRetry ? @"部分邮件判断失败，下次检查会重试。" :
+                    [NSString stringWithFormat:@"检查完成，共扫描 %lu 封近期邮件。", (unsigned long)messages.count]];
             });
             [self appendLog:[NSString stringWithFormat:@"检查完成：扫描 %lu 封近期邮件%@", (unsigned long)messages.count, needsRetry ? @"；部分 AI 判断待重试" : @""]];
             } @finally {

@@ -1,6 +1,6 @@
 # YINGYING 邮件自动回复 / YINGYING Mail Auto Reply
 
-**版本 / Version: 1.3.1 · macOS 12+ · Intel x86_64 + Apple Silicon arm64**
+**版本 / Version: 1.3.2 · macOS 12+ · Intel x86_64 + Apple Silicon arm64**
 
 ## 中文说明
 
@@ -12,7 +12,7 @@ YINGYING 邮件自动回复是一款在 Mac 上运行的原生应用。它通过
 
 ### 下载与安装
 
-1. 打开随本地交付提供的 Universal DMG，把 `YINGYING邮件自动回复.app` 拖进“应用程序”。以后如发布公开版本，可从项目的 Releases 页面下载。
+1. 从 [GitHub Releases](https://github.com/yingzhexu/yingying-mail-auto-reply/releases/latest) 下载 Universal DMG，打开后把 `YINGYING邮件自动回复.app` 拖进“应用程序”。也可使用桌面交付的同版本 DMG。
 2. 如果此前安装过 `ReplyPilot.app` 或旧版 `YINGYING邮件自动回复.app`，先退出旧应用，再换成新版，避免两个副本同时处理邮件。新版沿用应用标识 `com.replypilot.mail`，同一台 Mac 上的旧设置可继续读取。
 3. 此包为临时签名，**未经过 Apple 公证**。macOS 可能阻止首次打开。可在 Finder 中按住 Control 点击应用并选“打开”，或查看“系统设置 → 隐私与安全性”的对应提示。只使用你信任的下载来源。
 4. 在目标 Mac 的系统“邮件”中登录要处理的邮箱，确认它可以正常收发。然后打开本应用，输入邮箱完整地址，点“检测邮箱”。首次检测时，macOS 可能询问是否允许本应用控制“邮件”；同意后才能读取账户和发送回复。
@@ -32,9 +32,9 @@ API Key 按服务域名保存在这台 Mac 的钥匙串，不写入源码或应�
 ### 检查时间
 
 - **按间隔检查**：输入整数并选择秒、分钟或小时；范围为 30 秒到 24 小时。默认每 30 秒检查，启动后会立即检查一次。
-- **每天定时检查**：输入一个或多个 Mac 本地时间，例如 `13:00, 23:00`。默认是每天 13:00 和 23:00。启动时不会追发过去的时段；Mac 睡眠期间错过的时段，会在应用唤醒后补检。定时模式每次最多回看 24 小时；应用关闭期间不检查，也不在下次启动时自动补发。
+- **每天定时检查**：输入一个或多个 Mac 本地 24 小时时间，例如 `13:00, 23:00`。默认是每天 13:00 和 23:00。启动时不会追发过去的时段；Mac 睡眠期间错过的时段，会在应用唤醒后补检。运行中修改为有效时间会直接生效；状态栏显示下一次触发时间，日志记录实际触发。输入尚未完整时沿用上一次有效时间。定时模式每次最多回看 24 小时；应用关闭期间不检查，也不在下次启动时自动补发。
 - **定时汇总回复**：使用相同的定时时间。每次点击“启动自动回复”都会将回看起点重设为当时往前 12 小时；之后分别从每位发件人的上次成功回复时间继续读取。同一发件人在一次定时检查中，相关邮件合并为一封正式回复，并回复到最新一封邮件的线程。两个白名单发件人会分别处理、分别回复。已读邮件也纳入汇总。若 AI 决定不回复，下一次有新邮件时会连同此前未回复的邮件重新汇总。邮件很多时 AI 会先分段整理，再生成最终一封回复；附件内容暂不读取。应用关闭时不检查；重新启动后按新的 12 小时起点处理，已发送邮件不会重复发送。
-- **立即汇总近 30 分钟并发送**：仅在“定时汇总回复”模式可点。按下后立刻读取按钮点击前约 30 分钟的相关邮件，按白名单及规则让 AI 判断；需要回复时直接通过系统“邮件”发送，每位发件人最多一封。它可以在定时自动回复尚未启动时单独使用。已发送或发送结果不确定的邮件不会自动重发。
+- **立即汇总并发送**：仅在“定时汇总回复”模式可点。可填写回看时长和单位（分钟、小时或天），范围为 1 分钟至 30 天，默认 30 分钟。按下后立刻读取该时段的相关邮件，按白名单及规则让 AI 判断；需要回复时直接通过系统“邮件”发送，每位发件人最多一封。它可以在定时自动回复尚未启动时单独使用。已发送或发送结果不确定的邮件不会自动重发。回看范围越长，读取和 AI 处理可能越久。
 
 修改邮箱、AI 设置、白名单、规则或时间文本后，自动回复会暂停，需要核对设置并重新启动。
 
@@ -72,7 +72,7 @@ YINGYING Mail Auto Reply is a native Mac application. It reads new messages from
 
 ### Download and installation
 
-1. Open the Universal DMG supplied with this local delivery and drag `YINGYING邮件自动回复.app` into Applications. If a public release is published later, obtain it from the project's Releases page.
+1. Download the Universal DMG from [GitHub Releases](https://github.com/yingzhexu/yingying-mail-auto-reply/releases/latest) and drag `YINGYING邮件自动回复.app` into Applications. You can also use the matching DMG supplied on the Desktop.
 2. Quit and replace any earlier `ReplyPilot.app` or YINGYING copy before launching the new version. Running two copies could process the same inbox at once. The bundle identifier remains `com.replypilot.mail`, so settings from an earlier version on the same Mac can be read.
 3. This build is ad hoc signed and **not Apple notarized**. macOS may block the first launch. In Finder, Control-click the app and choose Open, or review the corresponding prompt in System Settings → Privacy & Security. Install only from a source you trust.
 4. Sign in to the target mailbox in macOS Mail on the destination Mac and confirm Mail can send and receive. Enter the full address in YINGYING and click “检测邮箱” (Check mailbox). macOS may ask whether the app can control Mail; this permission is required to read accounts and send replies.
@@ -92,9 +92,9 @@ Enter one complete address per line, such as `customer@example.com`, or a domain
 ### Schedules
 
 - **Interval:** Choose an integer and seconds, minutes, or hours. The allowed range is 30 seconds to 24 hours. The default is 30 seconds, with an immediate check on start.
-- **Daily times:** Enter one or more local Mac times, such as `13:00, 23:00`. These are the defaults. Starting the app does not replay an earlier slot. A slot missed while the Mac sleeps is checked after wake. Scheduled checks look back no more than 24 hours. The app does not check while closed or replay missed mail at its next launch.
+- **Daily times:** Enter one or more local Mac times in 24-hour format, such as `13:00, 23:00`. These are the defaults. Starting the app does not replay an earlier slot. A slot missed while the Mac sleeps is checked after wake. Editing to a valid time while running takes effect immediately; the status bar shows the next trigger and the log records actual triggers. While input is incomplete, the last valid schedule remains active. Scheduled checks look back no more than 24 hours. The app does not check while closed or replay missed mail at its next launch.
 - **Scheduled digest reply:** Uses the same local times. Every click of Start resets the lookback baseline to the preceding 12 hours; subsequent checks continue from each sender's last successful reply. Read messages are included. At each slot, messages from each allowlisted sender are combined into one formal reply in that sender's newest message thread. Two allowlisted senders are handled separately. If AI declines, unresolved messages are reconsidered when new mail arrives. Large batches are summarized in segments. Attachment contents are not read. The app does not check while closed. Restarting sets a fresh 12-hour baseline, while already sent mail remains deduplicated.
-- **Send a digest of the last 30 minutes now:** Available in Scheduled digest mode. Clicking the button immediately checks the preceding 30 minutes, asks AI to apply the allowlist and rules, and sends up to one combined reply per sender through Mail when AI approves. It works even if scheduled automation has not been started. Previously sent or uncertain sends are not retried automatically.
+- **Send a digest now:** Available in Scheduled digest mode. Enter a lookback duration in minutes, hours, or days, from 1 minute to 30 days; the default is 30 minutes. Clicking the button immediately checks that period, asks AI to apply the allowlist and rules, and sends up to one combined reply per sender through Mail when AI approves. It works even if scheduled automation has not been started. Previously sent or uncertain sends are not retried automatically. Longer periods may take more time to read and process.
 
 Editing the mailbox, AI settings, allowlist, rules, or schedule text pauses automation until you review the settings and start it again.
 

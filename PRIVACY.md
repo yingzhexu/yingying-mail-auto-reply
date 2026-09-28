@@ -1,12 +1,12 @@
 # 隐私与发布检查 / Privacy and Release Review
 
-**检查对象 / Reviewed version:** 1.3.1 · 2026-09-28
+**检查对象 / Reviewed version:** 1.3.2 · 2026-09-28
 
 ## 中文
 
 ### 发布内容检查
 
-本次只计划发布 `Sources/Main.m`、`Scripts/build.sh`、`Info.plist`、`ReplyPilot.entitlements`、`AppIcon.icns`、`README.md`、`PRIVACY.md` 与 `.gitignore`。检查了这些文本文件中的硬编码凭据、令牌格式、真实邮箱地址、个人用户目录、绝对本机路径和非预期网络地址；也检查了图标及编译后应用包的可读字符串。**未发现嵌入的 API Key、邮箱密码、用户邮件内容、运行日志或私人本机路径。** 源码中的 `@outlook.com` 等是邮箱提供商后缀，`name@example.com` 和 `customer@example.com` 是界面及文档示例；默认 DeepSeek 地址是公开 API 地址。
+本次只计划发布 `Sources/Main.m`、`Scripts/build.sh`、`Info.plist`、`ReplyPilot.entitlements`、`AppIcon.icns`、`README.md`、`PRIVACY.md`、`LICENSE` 与 `.gitignore`。检查了这些文本文件中的硬编码凭据、令牌格式、真实邮箱地址、个人用户目录、绝对本机路径和非预期网络地址；也检查了图标及编译后应用包的可读字符串。**未发现嵌入的 API Key、邮箱密码、用户邮件内容、运行日志或私人本机路径。** 源码中的 `@outlook.com` 等是邮箱提供商后缀，`name@example.com` 和 `customer@example.com` 是界面及文档示例；默认 DeepSeek 地址是公开 API 地址。
 
 仓库不包含 `build/`、`.app`、`.dmg`、`.zip`、运行时 `activity.log`、钥匙串导出、用户设置文件或邮件数据库。DMG 和源码 ZIP 作为 Release 下载附件提供；它们也只从上述经过筛选的文件及应用包制作。`.gitignore` 额外排除常见密钥、环境文件、日志和构建产物，防止后续误加。
 
@@ -30,7 +30,7 @@ AI 可能判断或撰写错误；白名单规则和自动邮件过滤不能保�
 
 ### Publication review
 
-The publication set is limited to `Sources/Main.m`, `Scripts/build.sh`, `Info.plist`, `ReplyPilot.entitlements`, `AppIcon.icns`, `README.md`, `PRIVACY.md`, and `.gitignore`. Text files were reviewed for embedded credentials, token patterns, real mailbox addresses, user-home paths, absolute local paths, and unexpected network destinations. Readable strings in the icon and compiled app bundle were also checked. **No embedded API Key, mailbox password, user message content, activity log, or private local path was found.** Provider suffixes such as `@outlook.com` are code logic; `name@example.com` and `customer@example.com` are UI and documentation examples; the default DeepSeek endpoint is public.
+The publication set is limited to `Sources/Main.m`, `Scripts/build.sh`, `Info.plist`, `ReplyPilot.entitlements`, `AppIcon.icns`, `README.md`, `PRIVACY.md`, `LICENSE`, and `.gitignore`. Text files were reviewed for embedded credentials, token patterns, real mailbox addresses, user-home paths, absolute local paths, and unexpected network destinations. Readable strings in the icon and compiled app bundle were also checked. **No embedded API Key, mailbox password, user message content, activity log, or private local path was found.** Provider suffixes such as `@outlook.com` are code logic; `name@example.com` and `customer@example.com` are UI and documentation examples; the default DeepSeek endpoint is public.
 
 The repository excludes `build/`, app bundles, DMGs, ZIPs, runtime logs, Keychain exports, user preference files, and Mail databases. The DMG and source ZIP are distributed as Release assets and are assembled only from the selected project files and app bundle. `.gitignore` additionally excludes common key files, environment files, logs, and build output to reduce accidental future inclusion.
 
